@@ -182,10 +182,6 @@ tidy(lm_Pos_game, conf.int = TRUE) %>% knitr::kable(digits = 100, col.names = c(
 ```
 
 
-  This model was overlaid on observed data in Figure 3. The plotted residuals in Figure 4 show that the model is overestimates for plus-minus per game above zero and underestimates below zero, similar to Figure 2. The linear model summary statistic table shows significance for both salary and position coefficients. The coefficients show for that position and salary have positive impacts on salary. 
-  
-  Plus-minus is commonly criticized because of its simplicity and not taking non scoring factors into account. To better understand what variables affect plus-minus, a linear regression model was created to predict accumulated player plus-minus based on non-scoring related statistics. Figure 5 is a pairwise plot categorized by position (forward in blue, defence in red) containing accumulated player plus-minus and the non scoring related statistics; games played, penalty plus-minus, time on ice percentage, zone start ratio and position. The correlations among the coefficient variables are relatively low, with the exception of salary vs games played. Forward selection and Akaike’s Information Index was used to help select the variables that would produce and effective linear model. The most effective model came from using Zone start ratio and games played: 
-
 $Accumulated PlusMinus =\beta_0+\beta_1\times Zone StartRatio+\beta_2 \times GamesPlayed + \epsilon$
 
 
