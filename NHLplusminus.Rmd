@@ -116,8 +116,6 @@ plot(x=log(new$Salary),y=resid(lm_Pos), main="Residules vs plus-minus",sub="Figu
 lm_Pos %>% tidy(conf.int = TRUE) %>% knitr::kable(digits = 100, col.names = c("Terms", "Estimates", "Std Error","Wald Statistic","P-Value",".05 Confidence", ".95 Confidence"), caption = "Summary statistics for linear regression to predict accumulated plus-minus")
 ```
 
-A second scatter plot was created to visualize the relationship between plus-minus per game and salary (Fig 3). Again salary is set to a log scale. There is a slight positive relationship between plus-minus per game and salary. A linear model was created to predict plus-minus per game using position and salary as coefficients.
-
 $Average PlusMinus Per Game =\beta_0+\beta_1\times Salary+\beta_2 \times Position + \epsilon$
 
 
