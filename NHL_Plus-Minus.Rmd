@@ -1,0 +1,206 @@
+---
+title: "Analysis Of Hockey Plus-Minus Using Linear Regression"
+output:
+  html_document:
+    theme: united
+    toc: yes
+    fig_caption: yes
+  html_notebook:
+    toc: yes
+    fig_caption: yes 
+---
+```{r global, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+```
+
+```{r setup, include=FALSE}
+library(rmutil)
+library(tidyverse)
+library(stats4)
+library(knitr)
+library(broom)
+library(ggplot2)
+library(GGally)
+```
+Reading the data from several different csv files. Formatting the data into one data set 
+```{r LoadData1}
+#load the data and power play data
+data <- read.csv("Data/2007-2017.csv")
+data_PP <- read.csv("Data/2007-2017_PP.csv")
+#create row names 
+rownames(data) <- (data$Player)
+
+```
+
+```{r combineData}
+#match data by player name between files 
+playerID = match(row.names(data), data_PP$Player)
+##add power play data 
+data$PP_G = data_PP$G[playerID]
+data$PP_A = data_PP$A[playerID]
+data$PP_G...=data_PP$G...[playerID]
+data$PP_GA=data_PP$GA[playerID]
+data$PP_GF=data_PP$GF[playerID]
+```
+
+
+```{r loadData2, message=FALSE}
+#Adding salary and Position 
+##import salary data 
+salary <- read_csv("Data/Names.csv", 
+    col_names = FALSE)
+playerID = match(row.names(data), salary$X1)
+data$Salary = salary$X2[playerID]
+##make values numbers 
+data$Salary = as.numeric(data$Salary)
+
+#seperate Defence from Forwards 
+Defence <- read_csv("Data/Defence.csv")
+##create new column that holds D
+Defence$Pos = rep('Defence',length(Defence$Player))
+playerID = match(row.names(data), Defence$Player)
+data$Pos = Defence$Pos[playerID]
+#Identify the forwards 
+data$Pos[is.na(data$Pos)] <- 'Forward'
+new = subset(data, !is.na(data$Salary))
+```
+
+
+Figure 1 is a kernel density plot for players accumulated plus-minus separated by position. The data appears to be relatively normally distributed. Forwards are a bit more skewed. 
+
+```{r density1, message=FALSE, warning=FALSE, fig.width=6, fig.height=4}
+#Density plot for plus-minus by position 
+caption = "Figure 1: Kernal Density plots of Forward and Defenceman accumulated plus-minus form 2008 to 2017."
+ggplot(new,aes(G..., colour = Pos, fill = Pos))+
+  geom_density(alpha = 0.1)+
+  labs(title = "Accumulated Plus-Minus Distribution By Position", caption = "Figure 1: Kernal Density plots of Forward and Defenceman accumulated\n plus-minus form 2008 to 2017.")+ xlab("Plus-Minus") + ylab("Distribution") + theme(plot.caption = element_text(hjust=0)) #hjust moves caption to left 
+```
+
+Figure 2 is a scatter plot to visualize the relationship between plus-minus and player salary. The data was grouped by position and the salary was set to a log scale. The scatter plot shows a positive association between salary and plus-minus. Model 1 is a linear regression model with response variable as players accumulated plus-minus and response variables salary and position. Model 1 is overlaid on the observed data in figure 1. 
+
+Model 1: $$Accumulated PlusMinus =\beta_0+\beta_1\times Salary+\beta_2 \times Position + \epsilon$$
+```{r model1}
+##linearmodel with Salary and Position 
+lm_Pos = lm(G...~ Pos + Salary,data=new)
+```
+
+```{r scatter1, message = FALSE, warning=FALSE, fig.width=10, fig.height=4}
+library(stringr)
+#Plot accumulated plus-minus agains salary, color by positions and overlay Model 1
+
+#fit the predicted values 
+pred = data.frame(G... = predict(lm_Pos))
+playerID = match(row.names(pred), new$Player)
+pred$Salary = new$Salary[playerID]
+pred$Pos = new$Pos[playerID]
+
+#plot 
+caption = "Figure 2: Scatter plot of players accumulated plus-minus form 2008 to 2017 vs accumulated player salary, catagorized by positoin. Model 1 is overlaid on the data, again catagorized by position"
+
+ggplot(data,aes(x=Salary, y=G..., color = Pos))+
+  geom_point()+
+  ggtitle("Career Plus-Minus vs Salary By Position")+ xlab("Salary") + ylab("PM")+
+  scale_x_log10()+
+  geom_line(data=pred)+
+  ggtitle("Accumulated Plus-Minus vs Salary")+ xlab("Player Salary") + ylab("Accumulated Plus-Minus")+
+  labs(caption = str_wrap(caption,120))+theme(plot.caption=element_text(size=9, hjust=0, margin=margin(t=15)))
+  
+```
+
+Figure 2 shows the residuals from Model 1 plotted against salary. The residuals in Figure 2 do not look healthy, the residuals appear to increase as the salary increases. 
+
+```{r residule1, fig.width=6, fig.height=4}
+#summary(lm_Pos)
+plot(x=log(new$Salary),y=resid(lm_Pos), main="Residules vs plus-minus",sub="Figure 3: Residules for the linear model against the log scaled salary", xlab = "Salary", ylab = "Residules")
+#plot(density(resid(lm_Pos))) # density distribution, clearly more higher negative residules 
+#want to look more uniform 
+#how to deal wwith skew regression coefi
+#AIC(lm_Pos) #AIC decreases 
+
+```
+
+```{r summary1, results="asis", message=FALSE, warning=FALSE}
+#summary table model 1
+lm_Pos %>% tidy(conf.int = TRUE) %>% knitr::kable(digits = 100, col.names = c("Terms", "Estimates", "Std Error","Wald Statistic","P-Value",".05 Confidence", ".95 Confidence"), caption = "Table 1: Summary statistics for Model 1")
+```
+
+Figure 4 is a kernel density plot for players average plus-minus separated by position. The data appears to be relatively normally distributed. Both distributions could be a mixture of two different distributions.  
+
+```{r density2, fig.width=6, fig.height=4}
+# Average plus-minus per game 
+#create +/- per game data
+data$G...game = data$G.../data$GP
+new = subset(data, !is.na(data$Salary))
+
+ggplot(new,aes(G...game, colour = Pos, fill = Pos))+
+  geom_density(alpha = 0.1)+
+  labs(title = "Average Plus-Minus Distribution By Position", caption = "Figure 4: Kernal Density plots of Forward and Defenceman average\n plus-minus form 2008 to 2017.")+ xlab("Plus-Minus") + ylab("Distribution") + theme(plot.caption = element_text(hjust=0)) #hjust moves caption to left 
+```
+
+Figure 5 is a scatter plot between plus-minus per game and player salary. Again salary is set to a log scale. There is a slight positive relationship between plus-minus per game and salary. Model 2 is a linear regression model with response variable as players plus-minus and response variables salary and position. Model 2 is overlaid on observed data in Figure 5.
+
+Model 2: $$Average PlusMinus Per Game =\beta_0+\beta_1\times Salary+\beta_2 \times Position + \epsilon$$
+
+
+```{r model2, message = FALSE, warning=FALSE, fig.width=4, fig.height=3}
+#Model 2
+lm_Pos_game = lm(G...game~Pos+Salary,data=new)
+
+```
+
+```{r scatter2, message=FALSE, fig.width=10, fig.height=4}
+#salary vs average plus-minus
+playerID = match(row.names(pred), new$Player)
+pred$G...game = predict(lm_Pos_game)
+
+#plot
+caption = "Figure 5: Scatter plot of players average plus-minus form 2008 to 2017 vs accumulated player salary, catagorized by positoin. The linear regression model is overlaid on the data, again catagorized by position"
+
+library(stringr)
+ggplot(new, aes(x= Salary, y= G...game, color= Pos))+
+  geom_point()+
+  scale_x_log10()+
+  geom_line(data=pred)+
+  ggtitle("Average Plus-Minus Per Game vs Salary")+ xlab("Player Salary") + ylab("Average Plus-Minus Per Game")+
+  labs(caption = str_wrap(caption,120))+theme(plot.caption=element_text(size=9, hjust=0, margin=margin(t=15)))
+```
+
+Figure 6 is the Model 2 residuals plotted against player salary. Table 2 summary statistic for Model 2 shows significance for both salary and position coefficients. Both coefficients show a positive relation to average plus-minus. 
+ 
+```{r residule2, fig.width=6, fig.height=4}
+#model 2 residule plot 
+plot(x=log(new$Salary),y=resid(lm_Pos_game), main="Residules vs Plus-Minus Per Game", xlab = "Salary", ylab = "Residules", sub = "Figure 6: Model 2 residules against the average plus-minus per game") 
+```
+
+
+```{r summary2, message=FALSE, warning=FALSE}
+#model 2 summary table 
+tidy(lm_Pos_game, conf.int = TRUE) %>% knitr::kable(digits = 100, col.names = c("Terms", "Estimates", "Std Error","Wald Statistic","P-Value",".05 Confidence", ".95 Confidence"), caption = "Summary statistics for linear regression to predict average plus-minus per game")
+```
+
+Plus-minus is commonly criticized because of its simplicity and not taking non scoring factors into account. To better understand what variables affect plus-minus, a linear regression model was created with response variable accumulated player plus-minus based on non-scoring related statistics. Figure 7 is a pairwise plot categorized by position (forward in blue, defense in red) containing accumulated player plus-minus and the non scoring related statistics; games played, penalty plus-minus, time on ice percentage, zone start ratio and position. The correlations among the coefficient variables are relatively low, with the exception of salary vs games played. Forward selection and Akaike’s Information Index is used select the variables to produce the best fitting linear model. The best fitting model came from using Zone start ratio and games played. 
+
+Model 3: $Accumulated PlusMinus =\beta_0+\beta_1\times Zone StartRatio+\beta_2 \times GamesPlayed + \epsilon$
+
+```{r pairwisePlot, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+# new variables, non scorign related 
+pairing = data.frame('Plus_Minus'=new$G...,'Games.Played'=new$GP, 'Penalty.Plus_Minus'= new$iP...,'Time.On.Ice' = new$TOI., 'Zone.Start.Ratio'=new$ZSR, Salary = log10(new$Salary), Pos = new$Pos)
+#pairwise plot 
+caption = "Figure 7: Pairwise plot of accumulated player plus-minus and non scoring statistical measurments including: Games Played, Peantly Plus-Minus, Percentage Time On Ice, Zone Start Ratio, Salary, and Position. The data is catagorized by player position. The diagnal is the density plots, the lower triangular are the scatterplots, the upper trianglular are the correlations and correlations by position."
+pairs = ggpairs(pairing,aes(colour=Pos))+
+  ggtitle("Parwise Plot Of Non Scoring Variables")+
+  labs(caption = str_wrap(caption,120))+theme(plot.caption=element_text(size=9, hjust=0, margin=margin(t=15)))
+print(pairs, progress = FALSE)
+```
+
+Figure 8 is the Model 3 residuals plotted against Zone Start Ratio and Games Played. Both residual plots appear fairly healthy with no definite trends. Table 3 summary statistics for Model 3 shows significance for both Zone start ratio and games played coefficients. Both coefficients show a positive relation to accumulated plus-minus. 
+
+```{r, message=FALSE, warning=FALSE, fig.width=9, fig.height=4, fig.cap="Figure 8: Model 3 residules against Zone Start Ratio and Games Played"}
+library(pander)
+nonscoringLM = lm(Plus_Minus ~ Zone.Start.Ratio + Games.Played,pairing)
+par(mfrow=c(1,2))
+plot(x=new$ZSR,y=resid(nonscoringLM), main="Residules vs Plus-Minus Per Game", xlab = "Zone Start Ratio", ylab = "Residules")
+plot(x=new$GP,y=resid(nonscoringLM), main="Residules vs Plus-Minus Per Game", xlab = "Games Played", ylab = "Residules")
+#summary statistics for Model 3 
+tidy(nonscoringLM, conf.int = TRUE) %>% knitr::kable(digits = 100, col.names = c("Terms", "Estimates", "Std Error","Wald Statistic","P-Value",".05 Confidence", ".95 Confidence"), caption = "Table 3: Summary statistics for Model 3 accumulated plus-minus using non scoring stats")
+```
